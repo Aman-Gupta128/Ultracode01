@@ -71,7 +71,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          target: google_apis
+          target: default   # plain Android image: its light home screen is steadier right after boot than the Pixel one
           arch: x86_64
           profile: pixel_6
           disable-animations: true

@@ -26,10 +26,21 @@ dump() { $ADB shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1; $ADB pull 
 screen_text() { dump; python3 "$HERE/ui_find.py" "$OUT/ui.xml" --texts; }
 find_xy() { dump; python3 "$HERE/ui_find.py" "$OUT/ui.xml" "$1"; }
 
+# A freshly booted emulator sometimes shows a system pop-up such as
+# "Pixel Launcher isn't responding" on top of the app: tap "Wait" to clear it.
+# Uses the screen dump that find_xy just made.
+clear_popups() {
+  if python3 "$HERE/ui_find.py" "$OUT/ui.xml" --texts | grep -q "t responding"; then
+    local xy; xy=$(python3 "$HERE/ui_find.py" "$OUT/ui.xml" "Wait")
+    [ -n "$xy" ] && $ADB shell input tap $xy && log "🧹 dismissed a system \"isn't responding\" pop-up"
+  fi
+}
+
 # Wait (up to ~20s x SLOW) for something to be on screen.
 see() {
   for _ in $(seq 1 10); do
     [ -n "$(find_xy "$1")" ] && { pass "sees '$1'"; return 0; }
+    clear_popups
     wait_s 2
   done
   fail "expected '$1' on screen. Screen shows: $(screen_text)"; return 1
@@ -38,6 +49,7 @@ tap() {
   for _ in $(seq 1 10); do
     xy=$(find_xy "$1")
     [ -n "$xy" ] && { $ADB shell input tap $xy; log "👆 tapped '$1'"; return 0; }
+    clear_popups
     wait_s 2
   done
   fail "could not find '$1' to tap. Screen shows: $(screen_text)"; return 1
@@ -50,10 +62,25 @@ has_notification() { $ADB shell dumpsys notification --noredact | grep -q "Notif
 open_app() { $ADB shell am start -W -n "$PKG/.MainActivity" > /dev/null; }
 open_shade() { $ADB shell cmd statusbar expand-notifications > /dev/null 2>&1 || $ADB shell service call statusbar 1 > /dev/null; }
 close_shade() { $ADB shell cmd statusbar collapse > /dev/null 2>&1 || $ADB shell service call statusbar 2 > /dev/null; }
+# Press Home and wait until the home screen really has focus. Right after boot the launcher
+# can be busy for minutes (input is then ignored, or "isn't responding" pops up).
+home_has_focus() { $ADB shell dumpsys window | grep -qiE "mCurrentFocus=Window\{[^ ]+ u0 [^ ]*launcher[^ ]*/"; }
+go_home() {
+  $ADB shell input keyevent KEYCODE_HOME
+  for _ in $(seq 1 30); do
+    home_has_focus && return 0
+    dump; clear_popups; wait_s 2
+    $ADB shell input keyevent KEYCODE_HOME
+  done
+  log "⚠️  the home screen did not take focus"
+}
 
 API=$($ADB shell getprop ro.build.version.sdk | tr -d '\r')
 log "Device: Android $($ADB shell getprop ro.build.version.release | tr -d '\r') (API $API), APK: $(basename "$APK")"
 $ADB logcat -c > /dev/null 2>&1 || true   # start the device log fresh (not every image allows it)
+
+# 0. Make sure the freshly booted device responds before testing anything.
+go_home && log "home screen ready"
 
 # 1. Fresh install, open the app.
 $ADB uninstall "$PKG" > /dev/null 2>&1
@@ -81,7 +108,7 @@ else
 fi
 
 # 4. Leave the app: the notification keeps the countdown; pause from there.
-$ADB shell input keyevent KEYCODE_HOME; wait_s 2
+go_home
 open_shade; wait_s 3
 see "Studying"
 shot 03_notification
@@ -101,7 +128,7 @@ see "Start" && shot 04_paused_from_notification
 tap "Start"
 see "Pause"
 before=$(countdown)
-$ADB shell input keyevent KEYCODE_HOME
+go_home
 log "⏳ app in the background for ${BACKGROUND_S:-60}s before the kill"
 sleep "${BACKGROUND_S:-60}"
 if $ADB root > /dev/null 2>&1 && $ADB wait-for-device && sleep 2 && [ -n "$($ADB shell pidof "$PKG" | tr -d '\r')" ]; then
