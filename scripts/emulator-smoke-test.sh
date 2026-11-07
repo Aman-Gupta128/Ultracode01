@@ -96,11 +96,14 @@ if has_notification; then fail "notification still showing after Pause"; else pa
 open_app
 see "Start" && shot 04_paused_from_notification
 
-# 5. Resume, then Android kills the app's process (as it does to free memory).
+# 5. Resume, leave the app in the background for a while (past Android's short
+#    "just left the app" allowances), then kill its process as Android does to free memory.
 tap "Start"
 see "Pause"
 before=$(countdown)
-$ADB shell input keyevent KEYCODE_HOME; wait_s 2
+$ADB shell input keyevent KEYCODE_HOME
+log "⏳ app in the background for ${BACKGROUND_S:-60}s before the kill"
+sleep "${BACKGROUND_S:-60}"
 if $ADB root > /dev/null 2>&1 && $ADB wait-for-device && sleep 2 && [ -n "$($ADB shell pidof "$PKG" | tr -d '\r')" ]; then
   $ADB shell kill -9 "$($ADB shell pidof "$PKG" | tr -d '\r')"
   log "💀 killed the app's process"
