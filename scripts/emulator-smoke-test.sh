@@ -45,7 +45,8 @@ tap() {
 countdown() { screen_text | grep -oE '[0-9]{2,3}:[0-9]{2}:[0-9]{2}' | head -1; }
 to_sec() { IFS=: read -r h m s <<< "$1"; echo $(( 10#$h * 3600 + 10#$m * 60 + 10#$s )); }
 fgs_running() { $ADB shell dumpsys activity services "$PKG" | grep -q "isForeground=true"; }
-has_notification() { $ADB shell dumpsys notification --noredact | grep -q "pkg=$PKG"; }
+# Live notifications only: the report also lists recently removed ones and usage stats.
+has_notification() { $ADB shell dumpsys notification --noredact | grep -q "NotificationRecord(.*pkg=$PKG"; }
 open_app() { $ADB shell am start -W -n "$PKG/.MainActivity" > /dev/null; }
 open_shade() { $ADB shell cmd statusbar expand-notifications > /dev/null 2>&1 || $ADB shell service call statusbar 1 > /dev/null; }
 close_shade() { $ADB shell cmd statusbar collapse > /dev/null 2>&1 || $ADB shell service call statusbar 2 > /dev/null; }
