@@ -144,7 +144,8 @@ else
   # Could not read the shade: check the notification through Android's notification report
   # instead, then send its Pause action the way the button does.
   log "⚠️  could not read the notification shade (${LAST_DUMP_ERROR:-nothing found}); checking the notification report instead"
-  report=$($ADB shell dumpsys notification --noredact | grep -A80 "NotificationRecord(.*pkg=$PKG")
+  # Only the lines of this app's own notification entry, not the ones after it.
+  report=$($ADB shell dumpsys notification --noredact | awk -v p="pkg=$PKG " '/NotificationRecord\(/ { mine = index($0, p) > 0 } mine')
   if echo "$report" | grep -q "android.title=String (Studying)"; then pass "notification says 'Studying'"; else fail "notification does not say 'Studying'"; fi
   if echo "$report" | grep -q '"Pause"'; then pass "notification has a Pause button"; else fail "notification has no Pause button"; fi
   $ADB root > /dev/null 2>&1; $ADB wait-for-device
