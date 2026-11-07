@@ -14,6 +14,15 @@ A minimal Android app for one goal: **study 100 hours in 7 days.**
 
 Every push builds an APK with GitHub Actions. Open the repo's **Releases** page on your phone, download the newest `100-hours-*.apk`, and install it. Newer builds install over older ones and keep your data.
 
+## Emulator check
+
+Every push also installs the APK on a full-speed Android 14 emulator on GitHub's machines (they support
+hardware virtualization; cloud sandboxes without it can only run old Android images in slow software mode)
+and uses it like a person: start the week, leave the app, pause from the notification, let Android kill the
+app's process, and check the timer survives. Screenshots and the device log are saved as the run's
+`emulator-screenshots` artifact. The script, `scripts/emulator-smoke-test.sh`, works against any emulator
+or phone connected with adb.
+
 ## Build locally
 
 Open the project in Android Studio, or run `./gradlew assembleRelease` (needs the Android SDK and JDK 17+).
