@@ -17,4 +17,6 @@ Every push builds an APK with GitHub Actions. Open the repo's **Releases** page 
 ## Build locally
 
 Open the project in Android Studio, or run `./gradlew assembleRelease` (needs the Android SDK and JDK 17+).
-Timer logic lives in `StudyState.kt` and is covered by `./gradlew testDebugUnitTest`.
+`./gradlew testDebugUnitTest` runs the tests: timer maths (`StudyStateTest`) and the app itself on the JVM
+with Robolectric (`AppFlowTest`: start/pause, the background notification and its Pause button, adjust/undo,
+week end). `./gradlew recordRoborazziDebug` also saves screenshots of each screen to `app/build/outputs/roborazzi/`.

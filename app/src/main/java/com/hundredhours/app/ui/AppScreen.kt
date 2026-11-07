@@ -32,6 +32,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -89,20 +90,21 @@ fun AppScreen(onTimerStarted: () -> Unit) {
         }
     }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .safeDrawingPadding()
-            .padding(horizontal = 24.dp, vertical = 12.dp)
-    ) {
-        when {
-            !state.hasWeek -> SetupScreen(state, theme, onStart = { goal ->
-                StudyStore.update { it.startWeek(System.currentTimeMillis(), goal) }
-                onTimerStarted()
-            })
-            state.isWeekOver(now) -> ResultScreen(state, now, onNewWeek = { StudyStore.update { it.reset() } })
-            else -> TimerScreen(state, now, theme, onTimerStarted)
+    // Surface sets the default text/icon colour for the theme (otherwise it is black, invisible in dark mode).
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Box(
+            Modifier
+                .safeDrawingPadding()
+                .padding(horizontal = 24.dp, vertical = 12.dp)
+        ) {
+            when {
+                !state.hasWeek -> SetupScreen(state, theme, onStart = { goal ->
+                    StudyStore.update { it.startWeek(System.currentTimeMillis(), goal) }
+                    onTimerStarted()
+                })
+                state.isWeekOver(now) -> ResultScreen(state, now, onNewWeek = { StudyStore.update { it.reset() } })
+                else -> TimerScreen(state, now, theme, onTimerStarted)
+            }
         }
     }
 }

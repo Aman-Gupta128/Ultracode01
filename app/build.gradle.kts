@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("io.github.takahirom.roborazzi")
 }
 
 android {
@@ -43,6 +44,19 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+
+    testOptions {
+        unitTests {
+            // Robolectric runs the real app (UI, service, notification) on the JVM.
+            isIncludeAndroidResources = true
+            all {
+                // Optional: fetch Robolectric's Android jars from a Maven mirror (-ProbolectricRepo=<url>).
+                project.findProperty("robolectricRepo")?.let { url ->
+                    it.systemProperty("robolectric.dependency.repo.url", url.toString())
+                }
+            }
+        }
+    }
 }
 
 dependencies {
@@ -58,4 +72,10 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.test:core-ktx:1.6.1")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.40.1")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.40.1")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
