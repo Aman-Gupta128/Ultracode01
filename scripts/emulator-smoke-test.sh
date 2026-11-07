@@ -22,7 +22,20 @@ pass() { log "✅ $*"; }
 fail() { log "❌ $*"; FAILED=1; }
 wait_s() { sleep $(( $1 * SLOW )); }
 shot() { $ADB exec-out screencap -p > "$OUT/$1.png" && log "📸 $1.png"; }
-dump() { $ADB shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1; $ADB pull /sdcard/ui.xml "$OUT/ui.xml" > /dev/null 2>&1; }
+# Read the screen into $OUT/ui.xml. `uiautomator dump` refuses ("could not get idle state")
+# while the screen keeps changing, e.g. the notification's ticking countdown. A failed read
+# gives an empty screen, never a stale copy of an earlier one.
+LAST_DUMP_ERROR=""
+dump() {
+  rm -f "$OUT/ui.xml"
+  local msg; msg=$($ADB shell "rm -f /sdcard/ui.xml; uiautomator dump /sdcard/ui.xml" 2>&1 | tr -d '\r')
+  if echo "$msg" | grep -q "dumped to"; then
+    $ADB pull /sdcard/ui.xml "$OUT/ui.xml" > /dev/null 2>&1 && LAST_DUMP_ERROR=""
+  else
+    LAST_DUMP_ERROR=$(echo "$msg" | tail -1)
+  fi
+  [ -s "$OUT/ui.xml" ] || echo '<hierarchy/>' > "$OUT/ui.xml"
+}
 screen_text() { dump; python3 "$HERE/ui_find.py" "$OUT/ui.xml" --texts; }
 find_xy() { dump; python3 "$HERE/ui_find.py" "$OUT/ui.xml" "$1"; }
 
@@ -110,12 +123,34 @@ fi
 # 4. Leave the app: the notification keeps the countdown; pause from there.
 go_home
 open_shade; wait_s 3
-see "Studying"
+# The notification's ticking countdown can deny the screen reader a quiet moment for long
+# stretches, so give it many tries, and only tap what it actually read.
+pause_xy=""
+for _ in $(seq 1 15); do
+  dump
+  if [ -n "$(python3 "$HERE/ui_find.py" "$OUT/ui.xml" Studying)" ]; then
+    pause_xy=$(python3 "$HERE/ui_find.py" "$OUT/ui.xml" Pause)
+    [ -n "$pause_xy" ] && break
+    # Notification collapsed: expand it to show its button.
+    xy=$(python3 "$HERE/ui_find.py" "$OUT/ui.xml" id:expand_button); [ -n "$xy" ] && $ADB shell input tap $xy
+  fi
+  wait_s 1
+done
 shot 03_notification
-if [ -z "$(find_xy Pause)" ]; then   # notification collapsed: expand it to show its button
-  xy=$(find_xy id:expand_button); [ -n "$xy" ] && $ADB shell input tap $xy && wait_s 2
+if [ -n "$pause_xy" ]; then
+  pass "sees the 'Studying' notification with its Pause button"
+  $ADB shell input tap $pause_xy; log "👆 tapped 'Pause' in the notification"
+else
+  # Could not read the shade: check the notification through Android's notification report
+  # instead, then send its Pause action the way the button does.
+  log "⚠️  could not read the notification shade (${LAST_DUMP_ERROR:-nothing found}); checking the notification report instead"
+  report=$($ADB shell dumpsys notification --noredact | grep -A80 "NotificationRecord(.*pkg=$PKG")
+  if echo "$report" | grep -q "android.title=String (Studying)"; then pass "notification says 'Studying'"; else fail "notification does not say 'Studying'"; fi
+  if echo "$report" | grep -q '"Pause"'; then pass "notification has a Pause button"; else fail "notification has no Pause button"; fi
+  $ADB root > /dev/null 2>&1; $ADB wait-for-device
+  $ADB shell am startservice -n "$PKG/.TimerService" -a com.hundredhours.app.PAUSE > /dev/null
+  log "👆 sent the notification's Pause action directly"
 fi
-tap "Pause"
 wait_s 3
 close_shade
 if fgs_running; then fail "service still running after Pause"; else pass "Pause in the notification stopped the timer"; fi
